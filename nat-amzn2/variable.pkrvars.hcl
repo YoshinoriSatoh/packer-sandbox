@@ -1,1 +1,1 @@
-profile = "output-sandbox-packer"
+profile = "my-output-sandbox"

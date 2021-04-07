@@ -4,7 +4,7 @@
 # [reference documentation](https://www.packer.io/docs/templates)
 variable "ami_name" {
   type    = string
-  default = "nat-amazonlinux2"
+  default = "wordpress-nginx-bitnami"
 }
 
 variable "profile" {
@@ -18,7 +18,7 @@ variable "region" {
 
 variable "instance_type" {
   type    = string
-  default = "t2.micro"
+  default = "t3a.micro"
 }
 
 locals { timestamp = regex_replace(timestamp(), "[- TZ:]", "") }
@@ -26,26 +26,40 @@ locals { timestamp = regex_replace(timestamp(), "[- TZ:]", "") }
 # source blocks configure your builder plugins; your source is then used inside
 # build blocks to create resources. A build block runs provisioners and
 # post-processors on an instance created by the source.
-source "amazon-ebs" "latest_amazon_linux_2" {
+source "amazon-ebs" "wordpress-nginx-bitnami" {
   profile       = "${var.profile}"
   region        = "${var.region}"
   instance_type = "${var.instance_type}"
   ami_name      = "${var.ami_name} ${local.timestamp}"
   source_ami_filter {
     filters = {
-      name                = "amzn2-ami-hvm-*-x86_64-gp2"
-      root-device-type    = "ebs"
-      virtualization-type = "hvm"
+      name = "bitnami-wordpresspro-5.7-2-linux-debian-10-x86_64-hvm-ebs-*"
+      virtualization-type: "hvm",
+      root-device-type: "ebs"
     }
     most_recent = true
-    owners      = ["amazon"]
+    owners      = ["aws-marketplace"]
   }
-  ssh_username = "ec2-user"
+  ssh_username = "bitnami"
 }
 
 # a build block invokes sources and runs provisioning steps on them.
 build {
-  sources = ["source.amazon-ebs.latest_amazon_linux_2"]
+  sources = ["source.amazon-ebs.wordpress-nginx-bitnami"]
+  provisioner "shell-local" {
+    script = "./files/var/www/wordpress/initialize.sh"
+    environment_vars = [
+      "SRC_WP_INIT_PATH={{user `src_wp_init_path`}}",
+      "EMAIL_TO_ADDRESS={{user `email_to_address`}}",
+      "EMAIL_FROM_ADDRESS={{user `email_from_address`}}",
+      "SMTP_USERNAME={{user `smtp_username`}}",
+      "SMTP_PASSWORD={{user `smtp_password`}}",
+    ]
+  }
+  provisioner "file" {
+    destination = "/tmp/"
+    source      = "./toupload"
+  }
   provisioner "shell" {
     script = "provision.sh"
   }
